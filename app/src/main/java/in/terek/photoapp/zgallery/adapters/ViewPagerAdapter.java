@@ -53,6 +53,11 @@ public class ViewPagerAdapter extends PagerAdapter {
         return images.size();
     }
 
+    public void setImageList(ArrayList<String> imageList){
+        this.images=imageList;
+        notifyDataSetChanged();
+    }
+
     @Override
     public boolean isViewFromObject(View view, Object object) {
         return view == ((RelativeLayout) object);

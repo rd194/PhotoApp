@@ -31,6 +31,12 @@ public class HorizontalListAdapters extends RecyclerView.Adapter<HorizontalImage
         this.imgClick = imgClick;
     }
 
+
+    public void setImageList(ArrayList<String> imageList){
+        this.images=imageList;
+        notifyDataSetChanged();
+    }
+
     @Override
     public HorizontalImageViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         return new HorizontalImageViewHolder(LayoutInflater.from(parent.getContext()).inflate(R.layout.z_item_image_horizontal, null));

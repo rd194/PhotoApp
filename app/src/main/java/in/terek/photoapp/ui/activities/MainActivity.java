@@ -2,16 +2,16 @@ package in.terek.photoapp.ui.activities;
 
 import android.Manifest;
 import android.annotation.TargetApi;
+import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
+import android.os.Handler;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -20,12 +20,12 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.TextUtils;
 import android.util.Log;
@@ -52,7 +52,6 @@ import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 import com.theartofdev.edmodo.cropper.CropImage;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -67,8 +66,9 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import in.terek.photoapp.BaseApplication;
 import in.terek.photoapp.R;
+import in.terek.photoapp.ZGallaryFragment;
 import in.terek.photoapp.db.ImageFiles;
-import in.terek.photoapp.zgallery.ZGallery;
+import in.terek.photoapp.ui.fragments.PhotoGallaryFragment;
 import in.terek.photoapp.zgallery.entities.ZColor;
 
 /**
@@ -92,8 +92,6 @@ public class MainActivity extends AppCompatActivity
      */
     @BindView(R.id.toolbar)
     Toolbar toolbar;
-    @BindView(R.id.rvPhotos)
-    RecyclerView rvPhotos;
     @BindView(R.id.fab)
     FloatingActionButton fab;
     @BindView(R.id.nav_view)
@@ -116,6 +114,10 @@ public class MainActivity extends AppCompatActivity
     private String mCurrentPhotoPath;
     private Uri uri;
     private ImageFiles dbImageFile;
+    private ArrayList<String> imageUrlList;
+    private Handler mHandler;
+    private ProgressDialog dialog;
+    private PhotoGallaryFragment photoGallaryFragment;
 
     @NonNull
     public static Intent createIntent(@NonNull Context context, @Nullable IdpResponse response) {
@@ -137,6 +139,7 @@ public class MainActivity extends AppCompatActivity
             finish();
             return;
         }
+        mHandler = new Handler();
 
         IdpResponse response = getIntent().getParcelableExtra(ExtraConstants.IDP_RESPONSE);
         setSupportActionBar(toolbar);
@@ -159,15 +162,21 @@ public class MainActivity extends AppCompatActivity
         //populateIdpToken(response);
 
 
-        ArrayList<String> imageUrlList = getImageUrlList();
+        imageUrlList = getImageUrlList();
+/*
 
-        ZGallery.with(this, imageUrlList)
+        PhotoGallaryFragment zak_gallery = ZGallaryFragment.with(this, imageUrlList)
                 .setToolbarTitleColor(ZColor.WHITE) // toolbar title color
                 .setGalleryBackgroundColor(ZColor.WHITE) // activity background color
                 .setToolbarColorResId(R.color.colorPrimary) // toolbar color
                 .setTitle("Zak Gallery") // toolbar title
-                .show();
+                .getFragment();
+*/
 
+
+        loadPhotoGallaryFragment();
+
+        //replaceFragment(null, issueListFragment, null, false);
 
     }
 
@@ -186,6 +195,38 @@ public class MainActivity extends AppCompatActivity
 
     }*/
 
+
+
+    private void loadPhotoGallaryFragment() {
+
+        Runnable mPendingRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // update the main content by replacing fragments
+                 photoGallaryFragment = ZGallaryFragment.with(MainActivity.this, imageUrlList)
+                        .setToolbarTitleColor(ZColor.WHITE) // toolbar title color
+                        .setGalleryBackgroundColor(ZColor.WHITE) // activity background color
+                        .setToolbarColorResId(R.color.colorPrimary) // toolbar color
+                        .setTitle("Zak Gallery") // toolbar title
+                        .getFragment();
+
+
+                FragmentTransaction fragmentTransaction = getSupportFragmentManager().beginTransaction();
+                fragmentTransaction.setCustomAnimations(android.R.anim.fade_in,
+                        android.R.anim.fade_out);
+                fragmentTransaction.replace(R.id.content_frame, photoGallaryFragment, photoGallaryFragment.getClass().getSimpleName());
+                fragmentTransaction.commitAllowingStateLoss();
+            }
+        };
+
+        // If mPendingRunnable is not null, then add to the message queue
+        if (mPendingRunnable != null) {
+            mHandler.post(mPendingRunnable);
+        }
+
+
+
+    }
 
     public void openCamera() {
        Pix.start(this, REQUEST_CAMERA, 1);
@@ -304,25 +345,12 @@ public class MainActivity extends AppCompatActivity
     }
 
 
-    public Uri getImageUri(Context inContext, Bitmap inImage) {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        inImage.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
-        String path = MediaStore.Images.Media.insertImage(inContext.getContentResolver(), inImage, null, null);
-        return Uri.parse(path);
-    }
-
-/*    public void saveBitmapToCache(Bitmap bitmap) {
-        Cache.getInstance().getLru().put("user_image", bitmap);
-    }
-
-
-    public Bitmap retrieveBitmapFromCache() {
-        Bitmap bitmap = (Bitmap) Cache.getInstance().getLru().get("user_image");
-        AppSharedPreference.putString(Consts.SP_KEY_USER_IMAGE, ImageConversion.encodeToBase64(bitmap), ProfileActivity.this);
-        return bitmap;
-    }*/
 
     private void uploadImage(Uri uri) {
+        dialog = new ProgressDialog(this);
+        dialog.setMessage("Uploading Image");
+        dialog.show();
+
         dbImageFile=new ImageFiles();
         dbImageFile.setCreationDate(new Date());
        // dbImageFile.setFileName(uri.getLastPathSegment());
@@ -340,14 +368,28 @@ public class MainActivity extends AppCompatActivity
                         Log.i(TAG, "onSuccess: ");
                         dbImageFile.setServerUriPath(taskSnapshot.getDownloadUrl().toString());
                         BaseApplication.daoSession.getImageFilesDao().insert(dbImageFile);
+                        updateGallaryView();
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
                     @Override
                     public void onFailure(@NonNull Exception e) {
                         Log.e(TAG, "onFailure: ", e);
+                        if (dialog.isShowing()) {
+                            dialog.dismiss();
+                        }
+                        Toast.makeText(MainActivity.this,"Some error occurred while uploading image",Toast.LENGTH_SHORT).show();
                     }
                 });
+
+    }
+
+    private void updateGallaryView() {
+        if (dialog.isShowing()) {
+            dialog.dismiss();
+
+            photoGallaryFragment.setImageList(getImageUrlList());
+        }
 
     }
 

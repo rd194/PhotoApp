@@ -13,6 +13,7 @@
         android:fitsSystemWindows="true"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginBottom="50dp"
         android:layout_below="@+id/toolbar" />
 
     <android.support.v7.widget.RecyclerView
@@ -20,8 +21,10 @@
         android:layout_width="match_parent"
         android:layout_height="70dp"
         android:layout_alignParentBottom="true"
-        android:layout_marginBottom="30dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginTop="10dp"
         android:clipToPadding="false"
         android:paddingLeft="40dp"
-        android:paddingRight="40dp" />
+        android:paddingRight="40dp"
+        />
 </RelativeLayout>
