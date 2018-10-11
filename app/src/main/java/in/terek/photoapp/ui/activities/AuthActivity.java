@@ -6,10 +6,9 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.StringRes;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.View;
+import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
 import com.firebase.ui.auth.AuthUI.IdpConfig;
@@ -21,7 +20,6 @@ import com.google.firebase.auth.FirebaseAuth;
 import java.util.ArrayList;
 import java.util.List;
 
-import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 import in.terek.photoapp.R;
@@ -31,7 +29,7 @@ public class AuthActivity extends AppCompatActivity {
     private static final String TAG = "AuthActivity";
     private static final int RC_SIGN_IN = 100;
 
-    @BindView(R.id.root) View mRootView;
+   // @BindView(R.id.root) View mRootView;
 
     @NonNull
     public static Intent createIntent(@NonNull Context context) {
@@ -148,6 +146,7 @@ public class AuthActivity extends AppCompatActivity {
 
 
     private void showSnackbar(@StringRes int errorMessageRes) {
-        Snackbar.make(mRootView, errorMessageRes, Snackbar.LENGTH_LONG).show();
+      //  Snackbar.make(mRootView, errorMessageRes, Snackbar.LENGTH_LONG).show();
+        Toast.makeText(this,errorMessageRes,Toast.LENGTH_LONG).show();
     }
 }

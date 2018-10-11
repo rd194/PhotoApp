@@ -11,7 +11,6 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
@@ -41,22 +40,36 @@ import com.bumptech.glide.Glide;
 import com.firebase.ui.auth.AuthUI;
 import com.firebase.ui.auth.IdpResponse;
 import com.firebase.ui.auth.util.ExtraConstants;
+import com.fxn.pix.Pix;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
+import com.theartofdev.edmodo.cropper.CropImage;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import in.terek.photoapp.BaseApplication;
 import in.terek.photoapp.R;
-import in.terek.photoapp.ui.util.Util;
+import in.terek.photoapp.db.ImageFiles;
+import in.terek.photoapp.zgallery.ZGallery;
+import in.terek.photoapp.zgallery.entities.ZColor;
 
 /**
  * @author Rajdeep yadav
@@ -100,6 +113,9 @@ public class MainActivity extends AppCompatActivity
     private View headerView;
     private boolean sentToSettings;
     private SharedPreferences permissionStatus;
+    private String mCurrentPhotoPath;
+    private Uri uri;
+    private ImageFiles dbImageFile;
 
     @NonNull
     public static Intent createIntent(@NonNull Context context, @Nullable IdpResponse response) {
@@ -141,6 +157,29 @@ public class MainActivity extends AppCompatActivity
         });
         populateProfile(response);
         //populateIdpToken(response);
+
+
+        ArrayList<String> imageUrlList = getImageUrlList();
+
+        ZGallery.with(this, imageUrlList)
+                .setToolbarTitleColor(ZColor.WHITE) // toolbar title color
+                .setGalleryBackgroundColor(ZColor.WHITE) // activity background color
+                .setToolbarColorResId(R.color.colorPrimary) // toolbar color
+                .setTitle("Zak Gallery") // toolbar title
+                .show();
+
+
+    }
+
+    private ArrayList<String> getImageUrlList() {
+        List<ImageFiles> imageFiles = BaseApplication.daoSession.getImageFilesDao().loadAll();
+
+        ArrayList<String> list=new ArrayList<>();
+
+        for (ImageFiles imageFile : imageFiles) {
+            list.add(imageFile.getServerUriPath());
+        }
+        return list;
     }
 
   /*  private void openCamera() {
@@ -149,16 +188,8 @@ public class MainActivity extends AppCompatActivity
 
 
     public void openCamera() {
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        //takePictureIntent.putExtra(MediaStore.EXTRA_SCREEN_ORIENTATION, ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+       Pix.start(this, REQUEST_CAMERA, 1);
 
-        final File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM + "/CMS/");
-        File imagePath = new File(path, "image" + System.currentTimeMillis() + ".png");
-        Uri uri = Uri.fromFile(imagePath);
-        // takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, uri);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            startActivityForResult(takePictureIntent, REQUEST_CAMERA);
-        }
     }
 
     @Override
@@ -216,27 +247,99 @@ public class MainActivity extends AppCompatActivity
         switch (requestCode) {
             case REQUEST_CAMERA:
                 if (resultCode == RESULT_OK) {
-                    Bitmap bitmap = Util.getBitmapFromIntent(data);
-                    Uri data1 = data.getData();
-                    uploadImage(data1);
+                    ArrayList<String> returnValue = data.getStringArrayListExtra(Pix.IMAGE_RESULTS);
+
+                    Uri imageUri = getImageUri(returnValue.get(0));
+
+                    if(imageUri!=null) {
+
+                        CropImage.activity(imageUri)
+                                .start(this);
+                    }
+                    else{
+                        Toast.makeText(this,"Some error occurred.",Toast.LENGTH_SHORT).show();
+                    }
+
+             /*       Bundle extras = data.getExtras();
+                    Bitmap bitmap = (Bitmap) extras.get("data");
+                    uri = getImageUri(MainActivity.this, bitmap);
+                  //  saveBitmapToCache(bitmap);
+                  //  imageViewUser.setImageBitmap(retrieveBitmapFromCache());
+
+
+                 *//*   Uri data1 = data.getData();
+                    uploadImage(retrieveBitmapFromCache());*//*
+                    uploadImage(uri);*/
                 } else {
                     Toast.makeText(mContext, "Some error occured", Toast.LENGTH_LONG).show();
                 }
+                break;
+
+            case CropImage.CROP_IMAGE_ACTIVITY_REQUEST_CODE:
+                    CropImage.ActivityResult result = CropImage.getActivityResult(data);
+                    if (resultCode == RESULT_OK) {
+                        Uri resultUri = result.getUri();
+                        uploadImage(resultUri);
+                    } else if (resultCode == CropImage.CROP_IMAGE_ACTIVITY_RESULT_ERROR_CODE) {
+                        Exception error = result.getError();
+                    }
+
                 break;
             default:
 
         }
     }
 
+    private Uri getImageUri(String s) {
+        try {
+            URL url = new URL("file://" + s);
+            URI uri = new URI(url.getProtocol(), url.getHost(), url.getPath(), url.getQuery(), null);
+            return Uri.parse(uri.toString());
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+
+    public Uri getImageUri(Context inContext, Bitmap inImage) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        inImage.compress(Bitmap.CompressFormat.JPEG, 100, bytes);
+        String path = MediaStore.Images.Media.insertImage(inContext.getContentResolver(), inImage, null, null);
+        return Uri.parse(path);
+    }
+
+/*    public void saveBitmapToCache(Bitmap bitmap) {
+        Cache.getInstance().getLru().put("user_image", bitmap);
+    }
+
+
+    public Bitmap retrieveBitmapFromCache() {
+        Bitmap bitmap = (Bitmap) Cache.getInstance().getLru().get("user_image");
+        AppSharedPreference.putString(Consts.SP_KEY_USER_IMAGE, ImageConversion.encodeToBase64(bitmap), ProfileActivity.this);
+        return bitmap;
+    }*/
+
     private void uploadImage(Uri uri) {
+        dbImageFile=new ImageFiles();
+        dbImageFile.setCreationDate(new Date());
+       // dbImageFile.setFileName(uri.getLastPathSegment());
+
+        dbImageFile.setLocalUriPath(uri.toString());
         FirebaseStorage instance = FirebaseStorage.getInstance();
         StorageReference reference = instance.getReference();
-        reference.child("images/" + UUID.randomUUID().toString());
-        reference.putFile(uri)
-                .addOnCompleteListener(new OnCompleteListener<UploadTask.TaskSnapshot>() {
+        StorageReference reference1 = FirebaseStorage.getInstance().getReference("images"+ UUID.randomUUID().toString());
+        // reference.child("images/" + UUID.randomUUID().toString()+".jpeg");
+        reference.child("images").child(uri.getLastPathSegment());
+        reference1.putFile(uri)
+                .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
                     @Override
-                    public void onComplete(@NonNull Task<UploadTask.TaskSnapshot> task) {
-                        Log.i(TAG, "onComplete: ");
+                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                        Log.i(TAG, "onSuccess: ");
+                        dbImageFile.setServerUriPath(taskSnapshot.getDownloadUrl().toString());
+                        BaseApplication.daoSession.getImageFilesDao().insert(dbImageFile);
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
